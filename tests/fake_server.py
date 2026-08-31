@@ -63,6 +63,25 @@ def tools() -> list[dict]:
     return TOOLS_V2 if os.environ.get("FAKE_TOOLSET") == "v2" else TOOLS
 
 
+RESOURCES = [
+    {
+        "uri": "file:///project/notes.txt",
+        "name": "notes",
+        "title": "Project notes",
+        "mimeType": "text/plain",
+        "description": "Running notes for the project, one line per day.",
+    },
+]
+
+PROMPTS = [
+    {
+        "name": "daily_digest",
+        "description": "Summarize today's notes into a short digest.",
+        "arguments": [],
+    },
+]
+
+
 def respond(req_id: int, result: dict) -> None:
     sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": req_id, "result": result}) + "\n")
     sys.stdout.flush()
@@ -87,6 +106,14 @@ def main() -> None:
             respond(req_id, {"protocolVersion": "2025-06-18", "serverInfo": {"name": "fake-math", "version": "9.9.9" if os.environ.get("FAKE_TOOLSET") != "v2" else "9.10.0"}, "capabilities": {}})
         elif method == "tools/list" and req_id is not None:
             respond(req_id, {"tools": tools()})
+        elif method == "resources/list" and req_id is not None:
+            respond(req_id, {"resources": RESOURCES})
+        elif method == "resources/read" and req_id is not None:
+            respond(req_id, {"contents": [{"uri": (msg["params"] or {}).get("uri"), "mimeType": "text/plain", "text": "day 1: wrote a wire tap"}]})
+        elif method == "prompts/list" and req_id is not None:
+            respond(req_id, {"prompts": PROMPTS})
+        elif method == "prompts/get" and req_id is not None:
+            respond(req_id, {"description": "digest", "messages": [{"role": "user", "content": {"type": "text", "text": "summarize"}}]})
         elif method == "tools/call" and req_id is not None:
             name = msg["params"]["name"]
             if name == "add":

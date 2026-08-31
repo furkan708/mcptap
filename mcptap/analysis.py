@@ -59,7 +59,10 @@ INVALID_WORDS = ("400", "404", "422", "invalid", "not found", "unknown", "unsupp
 
 
 def _tokens(text: str) -> int:
-    return math.ceil(len(text) / CHUNK)
+    """chars/4 for ASCII; non-ASCII counts ~1 token per char (CJK and emoji
+    are roughly one token each — plain chars/4 badly undercounts them)."""
+    non_ascii = sum(1 for ch in text if not ch.isascii())
+    return math.ceil((len(text) - non_ascii) / CHUNK) + non_ascii
 
 
 def _is_request(msg: dict[str, Any]) -> bool:
@@ -145,6 +148,8 @@ def analyze(records: list[dict[str, Any]]) -> dict[str, Any]:
     tool_surface: list[dict[str, Any]] = []
     surface_tokens = 0
     tools_list_calls = 0
+    resources = {"list_calls": 0, "listed": 0, "est_tokens": 0, "reads": 0}
+    prompts = {"list_calls": 0, "listed": 0, "est_tokens": 0, "gets": 0}
     requests_by_id: dict[Any, tuple[dict[str, Any], float]] = {}
     responses_by_id: dict[Any, tuple[dict[str, Any], float]] = {}
     calls: list[dict[str, Any]] = []
@@ -177,6 +182,22 @@ def analyze(records: list[dict[str, Any]]) -> dict[str, Any]:
             tools = ((response or {}).get("result") or {}).get("tools") or []
             if tools:
                 tool_surface, surface_tokens = _measure_surface(tools)
+        if method == "resources/list":
+            resources["list_calls"] += 1
+            items = ((response or {}).get("result") or {}).get("resources") or []
+            if items:
+                resources["listed"] = len(items)
+                resources["est_tokens"] = _tokens(json.dumps(items, ensure_ascii=False))
+        if method == "prompts/list":
+            prompts["list_calls"] += 1
+            items = ((response or {}).get("result") or {}).get("prompts") or []
+            if items:
+                prompts["listed"] = len(items)
+                prompts["est_tokens"] = _tokens(json.dumps(items, ensure_ascii=False))
+        if method == "resources/read":
+            resources["reads"] += 1
+        if method == "prompts/get":
+            prompts["gets"] += 1
         if method == "tools/call" and response is not None:
             calls.append(_measure_call(request, response, latency_ms))
 
@@ -239,6 +260,8 @@ def analyze(records: list[dict[str, Any]]) -> dict[str, Any]:
             "tools_list_calls": tools_list_calls,
             "unused_tools": unused,
         },
+        "resources": resources,
+        "prompts": prompts,
         "tool_calls": {
             "total": len(calls),
             "errors": len(errors),

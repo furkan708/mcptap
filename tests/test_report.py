@@ -17,7 +17,7 @@ def make_report(tmp_path: Path) -> dict:
 def test_report_server_and_message_counts(tmp_path):
     report = make_report(tmp_path)
     assert report["server"] == {"name": "fake-math", "version": "9.9.9"}
-    assert report["messages"] == {"client_to_server": 9, "server_to_client": 8}
+    assert report["messages"] == {"client_to_server": 13, "server_to_client": 12}
 
 
 def test_report_tool_surface_price(tmp_path):

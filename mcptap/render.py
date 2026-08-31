@@ -32,6 +32,15 @@ def render(report: dict[str, Any], path: Path) -> str:
     if surface["unused_tools"]:
         add(f"  unused (paid for, never called): {', '.join(surface['unused_tools'])}")
 
+    res = report.get("resources") or {}
+    pro = report.get("prompts") or {}
+    if res.get("list_calls") or res.get("reads"):
+        add(f"\nresources: {res.get('listed', 0)} listed ≈ {res.get('est_tokens', 0)} tokens "
+            f"({res.get('list_calls', 0)}× list, {res.get('reads', 0)}× read)")
+    if pro.get("list_calls") or pro.get("gets"):
+        add(f"prompts: {pro.get('listed', 0)} listed ≈ {pro.get('est_tokens', 0)} tokens "
+            f"({pro.get('list_calls', 0)}× list, {pro.get('gets', 0)}× get)")
+
     calls = report["tool_calls"]
     add(f"\ntool calls: {calls['total']} total, {calls['errors']} errors")
     if calls["errors"]:

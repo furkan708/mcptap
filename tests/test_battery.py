@@ -96,3 +96,76 @@ def test_battery_e_huge_line(tmp_path):
     stdin = "".join(json.dumps(m) + "\n" for m in lines).encode()
     out = _wrap_bytes(stdin, FAKE, session)
     assert out.count(big.encode()) >= 1, "1MB payload lost or corrupted in transit"
+
+
+def test_battery_f_notification_flood(tmp_path):
+    """300 notifications in a burst must ALL arrive — and be countable."""
+    session = tmp_path / "flood.jsonl"
+    lines = [{"jsonrpc": "2.0", "method": "notifications/progress", "params": {"n": i}} for i in range(300)]
+    lines.append({"jsonrpc": "2.0", "id": 1, "method": "count"})
+    stdin = "".join(json.dumps(m) + "\n" for m in lines).encode()
+    out = _wrap_bytes(stdin, REPO / "tests" / "fake_count_server.py", session)
+    assert b'"text": "301"' in out or b'"text":"301"' in out, (
+        "the count server saw fewer than 301 lines — the tap dropped traffic"
+    )
+
+
+def test_battery_g_final_line_without_newline(tmp_path):
+    """A server exiting mid-line (no trailing \\n) must not lose the tail."""
+    session = tmp_path / "partial.jsonl"
+    stdin = b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n'
+    out = _wrap_bytes(stdin, REPO / "tests" / "raw_server.py", session)
+    assert b'"partial":"final-line-without-newline"' in out, "trailing bytes were dropped"
+
+
+def test_battery_h_garbage_lines(tmp_path):
+    """Non-JSON lines from the client must be forwarded (and counted),
+    not eaten by the tap's parser."""
+    session = tmp_path / "garbage.jsonl"
+    parts = [b"this is not json {\xc3\x28", b"", b"<<<garbage>>>"]
+    parts.append(b'{"jsonrpc":"2.0","id":1,"method":"count"}\n')
+    stdin = b"\n".join(parts)
+    out = _wrap_bytes(stdin, REPO / "tests" / "fake_count_server.py", session)
+    assert b'"text": "4"' in out or b'"text":"4"' in out, (
+        "garbage lines were dropped in transit — the tap must be glass"
+    )
+
+
+def test_battery_i_crlf_line_endings(tmp_path):
+    """Windows-style CRLF lines must cross the tap byte-exact."""
+    session = tmp_path / "crlf.jsonl"
+    payload = b'{"jsonrpc":"2.0","id":1,"method":"x"}\r\n{"trailing":1}\r\n'
+    out = _wrap_bytes(payload, REPO / "tests" / "fake_echo_server.py", session)
+    assert out == payload, f"CRLF bytes were altered in transit: {out!r}"
+
+
+def test_battery_j_out_of_order_responses(tmp_path):
+    """Responses arriving out of order must be matched by id, not position.
+
+    The reverse server answers the SECOND request immediately and the
+    first only after 0.25s: positional matching would swap the latencies.
+    """
+    session = tmp_path / "reverse.jsonl"
+    lines = [
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "add", "arguments": {}}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "slow_mul", "arguments": {}}},
+    ]
+    stdin = "".join(json.dumps(m) + "\n" for m in lines).encode()
+    _wrap_bytes(stdin, REPO / "tests" / "fake_reverse_server.py", session)
+    from mcptap.analysis import analyze, load
+
+    report = analyze(load(session))
+    assert report["unanswered_requests"] == []
+    by_tool = {c["tool"]: c for c in report["tool_calls"]["detail"]}
+    assert by_tool["add"]["latency_ms"] >= 200, "first request must show the LATE answer"
+    assert by_tool["slow_mul"]["latency_ms"] < 200, "second request must show the EARLY answer"
+
+
+def test_token_estimate_is_unicode_aware():
+    """chars/4 badly undercounts CJK (≈1 token per char); the estimate
+    must not silently lowball non-English content."""
+    from mcptap.analysis import _tokens
+
+    assert _tokens("x" * 100) == 25  # ASCII stays chars/4
+    assert _tokens("一" * 100) >= 100  # CJK ≈ one token per char
+    assert _tokens("ş" * 40 + "x" * 60) >= 50  # Turkish mixes upward, honestly

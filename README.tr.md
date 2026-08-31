@@ -49,7 +49,7 @@ Her oturum bir dosya. Raporu ona doğrultun:
 $ mcptap report ~/.mcptap/sessions/20260831-101500-uvx.jsonl
 mcptap report — 20260831-101500-uvx.jsonl
   server: fake-math 9.9.9
-  session: 0.32s, 8→ client msgs, 7← server msgs, init 14.9ms
+  session: 0.32s, 13→ client msgs, 12← server msgs, init 19.3ms
 
 tool surface: 4 tools ≈ 163 tokens (1× tools/list)
        47  send_email  ⚠ imperative description
@@ -58,14 +58,18 @@ tool surface: 4 tools ≈ 163 tokens (1× tools/list)
        35  delete_everything
   unused (paid for, never called): delete_everything
 
-tool calls: 5 total, 3 errors
-  1× forbidden
+resources: 1 listed ≈ 44 tokens (1× list, 1× read)
+prompts: 1 listed ≈ 27 tokens (1× list, 1× get)
+
+tool calls: 6 total, 4 errors
+  2× forbidden
   1× invalid_request
   1× retryable
-  latency: p50 315.4ms, p95 315.5ms
-  ✗ send_email [retryable] (315.4ms): retryable: upstream SMTP connection timed out after 5000ms
-  ✗ boom [forbidden] (315.4ms): 401 Unauthorized: invalid API key
-  ✗ lying_label [invalid_request] (315.5ms): invalid_request: connection reset by peer
+  latency: p50 319.7ms, p95 319.8ms
+  ✗ send_email [retryable] (319.7ms): retryable: upstream SMTP bağlantısı zaman aşımına uğradı
+  ✗ boom [forbidden] (319.8ms): 401 Unauthorized: geçersiz API anahtarı
+  ✗ lying_label [invalid_request] (319.8ms): invalid_request: connection reset by peer
+  ✗ structured_liar [forbidden] (319.8ms): retryable: connection reset (structuredContent kazanır)
 
 prompt-injection suspects (imperative tool descriptions): send_email
 
@@ -197,12 +201,10 @@ iletilen protokole hem kaydedilen oturuma iddia yapar.
 - araç kendini hak edince halka açmak
 - `mcptap doctor` — HTTP sunucuları için `mcpify doctor`'ın yaptığı gibi,
   istemci config'indeki sunucu listesini sağlamlık kontrolünden geçirmek
-- raporda resources & prompts trafiği (tap bugün kaydedip iletiyor ama
-  rapor yalnızca araçlara bakıyor)
 - yalnız stdio değil, Streamable HTTP taşımacılığını da tap'lemek
-- Windows testi (Claude Desktop'ın öbür evi)
-- unicode-farkında token ölçümü (karakter/4 İngilizce olmayan içerikte
-  düşük tahmin eder; bir sezgidir ve bunu söyler)
+- unicode-farkında token ölçümü geldi (ASCII karakter/4, ASCII-dışı ≈
+  karakter başına 1 token); gerçek bir tokenizer daha keskin olurdu —
+  sıfır bağımlılık kuralı dışarıda bırakıyor
 
 ## Lisans
 

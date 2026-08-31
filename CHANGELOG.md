@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 — resources & prompts, battery to 10, unicode tokens, Windows
+
+- The report sees the whole MCP surface now: `resources:` (listed count,
+  list-response token price, reads) and `prompts:` (listed, tokens, gets)
+  join the tool surface — list responses for them get injected into
+  context exactly like tools/list.
+- Battery grew from 5 to 10 probes. The five new ones — notification
+  flood (300 in a burst), final line without a trailing newline, garbage
+  non-JSON lines, CRLF line endings, out-of-order responses — all passed
+  on first contact (the 0.4.0 hardening held); they are pinned now, and
+  out-of-order matching is pinned by latency, not just by count.
+- Token estimate is unicode-aware: ASCII stays chars/4, non-ASCII counts
+  ≈1 token per char. Plain chars/4 silently lowballed CJK and other
+  non-English content by up to 4×.
+- CI gained a Windows job (windows-latest) — Claude Desktop's other home.
+
 ## 0.4.0 — adversarial battery: batches, byte-exact passthrough, 0600
 
 Found by probing the tap with what the real wire can do (5-probe
