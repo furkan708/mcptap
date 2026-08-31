@@ -66,6 +66,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_replay.add_argument("session", type=Path, help="recorded session .jsonl")
     p_replay.add_argument("--out", type=Path, default=None, help="replay session file")
 
+    p_doctor = sub.add_parser(
+        "doctor", help="probe every stdio server in a client config and report health"
+    )
+    p_doctor.add_argument("config", type=Path, nargs="?", default=None,
+                          help="config file (default: search .mcp.json, Cursor, Claude Code, Claude Desktop)")
+
+    p_sessions = sub.add_parser("sessions", help="list recorded sessions with summaries")
+    p_sessions.add_argument("--dir", type=Path, default=DEFAULT_SESSIONS_DIR,
+                            help=f"sessions directory (default: {DEFAULT_SESSIONS_DIR})")
+
     return parser
 
 
@@ -122,8 +132,42 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(_render_diff(result["differences"], args.session, result["new_session"]))
         return 1 if result["differences"] else 0
 
+    if args.command == "doctor":
+        from .doctor import main_doctor
+
+        return main_doctor(args.config)
+
+    if args.command == "sessions":
+        return _list_sessions(args.dir)
+
     parser.error(f"unknown command {args.command!r}")
     return 2  # unreachable
+
+
+def _list_sessions(directory: Path) -> int:
+    from .analysis import analyze, load
+    from .watch import latest_session
+
+    newest = latest_session(directory)
+    files = sorted(directory.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files:
+        sys.stdout.write(f"no sessions in {directory}\n")
+        return 0
+    print(f"mcptap sessions — {directory}")
+    for path in files:
+        try:
+            report = analyze(load(path))
+        except (OSError, json.JSONDecodeError):
+            print(f"  {path.name}  (unparseable)")
+            continue
+        server = report.get("server") or {}
+        mark = "  (newest)" if path == newest else ""
+        print(
+            f"  {path.name}  {server.get('name') or '?'} {server.get('version') or ''}  "
+            f"{report['duration_s']}s  {report['tool_surface']['count']} tools ≈ "
+            f"{report['tool_surface']['est_tokens']} tk{mark}"
+        )
+    return 0
 
 
 def _watch_loop(path: Path, interval: float, tail: int, once: bool) -> int:

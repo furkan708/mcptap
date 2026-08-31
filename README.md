@@ -120,8 +120,6 @@ verdict.
 ## Roadmap
 
 - public launch once the tool earns it
-- `mcptap doctor` — sanity-check a client config's server list the way
-  `mcpify doctor` does for HTTP servers
 - tapping Streamable HTTP transports, not just stdio
 - a unicode-aware token estimate is in (ASCII chars/4, non-ASCII ≈ 1
   token/char); a real tokenizer would be sharper — zero-dep rules it out
@@ -155,6 +153,27 @@ mcptap diff — old.jsonl → new.jsonl
 regression harness: the client script is re-sent to a fresh server and
 the wire is diffed against the recording. Exit code 1 on differences, so
 it slots into scripts and CI as a gate.
+
+**`mcptap doctor [CONFIG]`** — "is my client config even alive?", one
+command. Every stdio server gets a paced probe handshake; the report
+says identity, init latency, surface price — or the honest reason it's
+broken. Remote (url) entries are skipped with a note stating the gap.
+Exit code 1 when anything is broken:
+
+```console
+$ mcptap doctor /tmp/demo-mcp.json
+mcptap doctor — /tmp/demo-mcp.json
+  ✓ math: fake-math 9.9.9 — init 20.1ms, 4 tools ≈ 164 tk, 1 res, 1 prompt
+  ✗ dies: no answer to initialize (server died, hung, or is not an MCP stdio server)
+  ⚠ remote-db: not stdio (https://db.internal/mcp); HTTP tapping is on the roadmap
+1 of 2 probed servers broken
+```
+
+Finds configs on its own when given none: `.mcp.json`, `.cursor/mcp.json`,
+`~/.cursor/mcp.json`, `~/.claude.json`, the Claude Desktop config.
+
+**`mcptap sessions`** — recorded sessions with identity and surface size,
+newest marked — pick the one to `report` or `watch`.
 
 Replays are *paced*: after each request the replay waits for its response
 before sending the next line. That is not politeness — real servers

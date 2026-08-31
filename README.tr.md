@@ -144,9 +144,31 @@ mcptap diff — old.jsonl → new.jsonl
 ```
 
 **`mcptap replay OTURUM -- cmd`** — kayıtlı bir oturum, regresyon
-armağanına dönüşür: istemci betiği taze bir sunucuya yeniden gönderilir ve
+aracına dönüşür: istemci betiği taze bir sunucuya yeniden gönderilir ve
 tel, kayıtla karşılaştırılır. Fark varsa çıkış kodu 1'dir; betiklere ve
 CI'a kapı olarak takılır.
+
+**`mcptap doctor [CONFIG]`** — "istemcimin config'i hiç canlı mı?" sorusu,
+tek komut. Config'teki her stdio sunucusu tempolu bir el sıkışmayla
+sınanır; rapor kimlik, init gecikmesi, yüzey fiyatı söyler — ya da bozuksa
+dürüst sebebini. Uzak (url) girdiler notla atlanır ve boşluk açıkça söylenir.
+Bir şey kırıksa çıkış kodu 1:
+
+```console
+$ mcptap doctor /tmp/demo-mcp.json
+mcptap doctor — /tmp/demo-mcp.json
+  ✓ math: fake-math 9.9.9 — init 20.1ms, 4 tools ≈ 164 tk, 1 res, 1 prompt
+  ✗ dies: no answer to initialize (server died, hung, or is not an MCP stdio server)
+  ⚠ remote-db: not stdio (https://db.internal/mcp); HTTP tapping is on the roadmap
+1 of 2 probed servers broken
+```
+
+Config verilmezse kendisi bulur: `.mcp.json`, `.cursor/mcp.json`,
+`~/.cursor/mcp.json`, `~/.claude.json`, Claude Desktop config'i.
+
+**`mcptap sessions`** — kayıtlı oturumlar kimlik ve yüzey ölçüsüyle
+listelenir, en yeni işaretlenir; `report`/`watch`'a vereceğinizi buradan
+seçersiniz.
 
 Replay'ler *tempolu* yürür: her istekten sonra yanıtını bekler, öbür
 satırı öyle gönderir. Bu nezaket değil — gerçek sunucular (mcp-server-fetch
@@ -199,8 +221,6 @@ iletilen protokole hem kaydedilen oturuma iddia yapar.
 ## Yol haritası
 
 - araç kendini hak edince halka açmak
-- `mcptap doctor` — HTTP sunucuları için `mcpify doctor`'ın yaptığı gibi,
-  istemci config'indeki sunucu listesini sağlamlık kontrolünden geçirmek
 - yalnız stdio değil, Streamable HTTP taşımacılığını da tap'lemek
 - unicode-farkında token ölçümü geldi (ASCII karakter/4, ASCII-dışı ≈
   karakter başına 1 token); gerçek bir tokenizer daha keskin olurdu —

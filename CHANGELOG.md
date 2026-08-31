@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0 — doctor & sessions
+
+- `mcptap doctor [CONFIG]` — one command for "is my client config even
+  alive?": probes every stdio server with a paced handshake (initialize →
+  tools/list → resources/list → prompts/list → clean close) and reports
+  per server: identity, init latency, tool surface token price, resource
+  and prompt counts — or the honest reason it's broken (no answer to
+  initialize / non-zero exit / command not found). Non-stdio (url) entries
+  are skipped with a note stating the HTTP-transport gap instead of hiding
+  it. Understands `.mcp.json`, `.cursor/mcp.json`, `~/.cursor/mcp.json`,
+  `~/.claude.json` and the Claude Desktop config per platform; exit code 1
+  when anything probed is broken — CI-able. Unsupported list methods
+  (-32601) count as zero, not broken: capabilities differ.
+- `mcptap sessions [--dir]` — recorded sessions with server identity,
+  duration, surface size; newest marked.
+
 ## 0.5.0 — resources & prompts, battery to 10, unicode tokens, Windows
 
 - The report sees the whole MCP surface now: `resources:` (listed count,
