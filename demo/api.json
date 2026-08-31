@@ -1,0 +1,39 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Petstore Fixture",
+    "description": "Deterministic local API for the mcptap × mcpify composition demo.",
+    "version": "1.0.0"
+  },
+  "servers": [{ "url": "http://127.0.0.1:8907" }],
+  "paths": {
+    "/ok": {
+      "get": {
+        "summary": "Health check that always succeeds",
+        "operationId": "health_check",
+        "responses": { "200": { "description": "fine" } }
+      }
+    },
+    "/slow": {
+      "get": {
+        "summary": "Slow report that takes ~400ms",
+        "operationId": "slow_report",
+        "responses": { "200": { "description": "slow but fine" } }
+      }
+    },
+    "/err500": {
+      "get": {
+        "summary": "Endpoint that always fails with 500",
+        "operationId": "boom_500",
+        "responses": { "500": { "description": "internal failure" } }
+      }
+    },
+    "/err401": {
+      "get": {
+        "summary": "Endpoint that always rejects credentials",
+        "operationId": "no_auth",
+        "responses": { "401": { "description": "unauthorized" } }
+      }
+    }
+  }
+}

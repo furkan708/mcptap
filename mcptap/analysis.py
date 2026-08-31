@@ -290,7 +290,9 @@ def _measure_call(
         "error": bool(kind),
         "error_kind": kind or None,
         "error_category": category,
-        "error_excerpt": text[:200] or None,
+        # single line: wire errors carry multi-line JSON bodies, and the
+        # report stays one-error-per-line
+        "error_excerpt": (" ".join(text.split())[:200] or None) if text else None,
     }
 
 
