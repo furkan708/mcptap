@@ -87,6 +87,9 @@ sezgisi); aynı yüzeyin tembel yüklenen bir varyantı: ~291. Hiç
 
 Hatalar katmanlı sınıflandırılır, en güvenilenden başlayarak:
 
+0. **structuredContent** — sonucunun `structuredContent`'inde
+   `error_category` belirten bir sunucu (mcpify ≥ 1.18 yapar) aynen
+   inanılır; `http_status`'ü de çağrıyla birlikte kaydedilir.
 1. **Öncü tokenler** — `retryable:` / `invalid_request:` / `forbidden:`
    ile başlayan hatalar (tap'ın varlığını bilen sunucular, mcpify ≥ 1.19)
    aynen onurlandırılır; anahtar kelimeler başka desin de.
@@ -153,6 +156,13 @@ Test bataryası, resmî `mcp-server-fetch` çevresinde smoke testleri içerir
 (kurulu değilken otomatik atlanır). Tap'ten ölçülen: `mcp-fetch 1.29.1`,
 290 tokenlik yüzeyi olan tek `fetch` aracı, initialize ~1.7 s, temiz 0
 çıkışı — report, diff ve replay üçü de ona karşı doğrulandı.
+
+Ayrıca **mcpify** ile kompozisyon halinde sabitlendi: istemci → mcptap
+wrap → `mcpify serve` → fixture HTTP API, ayrı bir CI işi olarak.
+mcpify'ın kendi hata taksonomisi (`retryable:` / `forbidden:` tokenleri ve
+`structuredContent.error_category`) tap'ten doğru okunuyor; kayıtlı
+oturumun replay'i fark bildirmiyor. Hatasını kendi tanımlayan sunucu ile
+bunu onurlandıran tap iki katmandır — rakip değil.
 
 ## Tasarım kuralları
 

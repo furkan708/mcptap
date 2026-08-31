@@ -68,8 +68,11 @@ def respond(req_id: int, result: dict) -> None:
     sys.stdout.flush()
 
 
-def error_result(req_id: int, text: str) -> None:
-    respond(req_id, {"isError": True, "content": [{"type": "text", "text": text}]})
+def error_result(req_id: int, text: str, structured: dict | None = None) -> None:
+    result = {"isError": True, "content": [{"type": "text", "text": text}]}
+    if structured is not None:
+        result["structuredContent"] = structured
+    respond(req_id, result)
 
 
 def main() -> None:
@@ -102,6 +105,14 @@ def main() -> None:
                 # Prefix contradicts the keywords: heuristics alone would say
                 # retryable (connection/socket); the leading token must win.
                 error_result(req_id, "invalid_request: connection reset by peer, socket refused")
+            elif name == "structured_liar":
+                # structuredContent contradicts BOTH the leading token and the
+                # keywords (both say retryable): the structured field must win.
+                error_result(
+                    req_id,
+                    "retryable: connection reset by peer, socket refused",
+                    structured={"error_category": "forbidden", "http_status": 403, "retryable": False},
+                )
             else:
                 error_result(req_id, f"invalid_request: unknown tool {name}")
         # notifications (no id) get no response, per JSON-RPC

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0 — structuredContent layer 0, composition pinned
+
+- Error taxonomy has a new most-trusted layer: a result's
+  `structuredContent.error_category` is believed verbatim (mcpify ≥ 1.18
+  states it), ahead of leading tokens and keyword heuristics. Proven with
+  a fixture whose structured field contradicts both its `retryable:`
+  prefix and the keywords — the structured field wins. Per-call
+  `http_status` from structuredContent is now recorded too.
+- Composition with mcpify is pinned as a test: client → mcptap wrap →
+  mcpify serve → fixture HTTP API. Asserts mcpify's own retryable/
+  forbidden classification and http statuses survive the tap, and a clean
+  session reports clean. Runs in CI as its own job (`composition-mcpify`,
+  installs mcpify from PyPI); skips when mcpify is absent.
+- demo/ gains the deterministic fixture API + OpenAPI spec used by the
+  composition proof (measured through the tap: 5 tools ≈ 403 tokens,
+  p95 401.7 ms, replay: no differences).
+
 ## 0.2.0 — watch, diff, replay, real-server smoke
 
 - `mcptap watch` — live-refreshing report of the newest (or given) session,

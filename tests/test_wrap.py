@@ -19,6 +19,7 @@ SESSION_LINES = [
     {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "send_email", "arguments": {"to": "x@y.z"}}},
     {"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "boom", "arguments": {}}},
     {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "lying_label", "arguments": {}}},
+    {"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "structured_liar", "arguments": {}}},
 ]
 
 
@@ -45,7 +46,7 @@ def test_wrap_passes_protocol_through(tmp_path):
     stdout, _ = run_wrap(tmp_path)
     responses = [json.loads(line) for line in stdout.splitlines() if line.strip()]
     ids = [r.get("id") for r in responses]
-    assert ids == [1, 2, 3, 4, 5, 6, 7], f"expected all seven responses, got {ids}"
+    assert ids == [1, 2, 3, 4, 5, 6, 7, 8], f"expected all eight responses, got {ids}"
     assert responses[0]["result"]["serverInfo"]["name"] == "fake-math"
     assert responses[2]["result"]["content"][0]["text"] == "42"  # add(20, 22)
 
@@ -58,7 +59,7 @@ def test_wrap_records_both_directions_and_lifecycle(tmp_path):
     assert "exit" in events
     c2s = [r for r in records if r.get("dir") == "c2s"]
     s2c = [r for r in records if r.get("dir") == "s2c"]
-    assert len(c2s) == 8  # 8 client lines (incl. notification)
-    assert len(s2c) == 7  # 7 responses
+    assert len(c2s) == 9  # 9 client lines (incl. notification)
+    assert len(s2c) == 8  # 8 responses
     exit_rec = next(r for r in records if r.get("event") == "exit")
     assert exit_rec["code"] == 0

@@ -17,7 +17,7 @@ def make_report(tmp_path: Path) -> dict:
 def test_report_server_and_message_counts(tmp_path):
     report = make_report(tmp_path)
     assert report["server"] == {"name": "fake-math", "version": "9.9.9"}
-    assert report["messages"] == {"client_to_server": 8, "server_to_client": 7}
+    assert report["messages"] == {"client_to_server": 9, "server_to_client": 8}
 
 
 def test_report_tool_surface_price(tmp_path):
@@ -37,15 +37,19 @@ def test_report_unused_tools(tmp_path):
 def test_report_error_taxonomy(tmp_path):
     report = make_report(tmp_path)
     calls = report["tool_calls"]
-    assert calls["total"] == 5
-    assert calls["errors"] == 3
-    assert calls["categories"] == {"retryable": 1, "forbidden": 1, "invalid_request": 1}
+    assert calls["total"] == 6
+    assert calls["errors"] == 4
+    assert calls["categories"] == {"retryable": 1, "forbidden": 2, "invalid_request": 1}
     by_tool = {c["tool"]: c for c in calls["detail"]}
     assert by_tool["send_email"]["error_category"] == "retryable"  # leading token honoured
     assert by_tool["boom"]["error_category"] == "forbidden"  # 401 heuristic
     # The prefix CONTRADICTS the keywords (connection/socket → retryable);
     # if heuristics won, this would be retryable. Leading token must win.
     assert by_tool["lying_label"]["error_category"] == "invalid_request"
+    # structuredContent CONTRADICTS both the prefix and the keywords (all say
+    # retryable). The structured field is the most trusted layer — it must win.
+    assert by_tool["structured_liar"]["error_category"] == "forbidden"
+    assert by_tool["structured_liar"]["http_status"] == 403
 
 
 def test_report_latency(tmp_path):

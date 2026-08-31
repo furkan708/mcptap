@@ -85,13 +85,16 @@ mcptap shows you the invoice you were already paying.
 
 Errors are categorized in layers, most-trusted first:
 
+0. **structuredContent** — a result that states `error_category` in its
+   `structuredContent` (mcpify ≥ 1.18 does) is believed verbatim; its
+   `http_status` is recorded with the call.
 1. **Leading tokens** — errors that start with `retryable:` /
    `invalid_request:` / `forbidden:` (mcptap-aware servers, mcpify ≥ 1.19)
    are honoured exactly, even when keywords say otherwise.
 2. **JSON-RPC error codes** — `-32700/-32600/-32601/-32602` →
    invalid_request, `-32603` → retryable.
 3. **Keyword heuristics** — 401/403/unauthorized → forbidden;
-   timeout/reset/429/5xx → retryable; 400/404/22/invalid → invalid_request;
+   timeout/reset/429/5xx → retryable; 400/404/422/invalid → invalid_request;
    anything else is honestly labelled `unknown`.
 
 ### Silent failures
@@ -159,6 +162,14 @@ The test suite includes smoke tests around the official `mcp-server-fetch`
 tap: `mcp-fetch 1.29.1`, one `fetch` tool worth 290 tokens of surface,
 initialize at ~1.7 s, clean exit 0 — report, diff and replay all verified
 against it.
+
+It is also pinned in composition with **mcpify**: client → mcptap wrap →
+`mcpify serve` → fixture HTTP API, as a CI job of its own. mcpify's own
+error taxonomy (`retryable:` / `forbidden:` tokens and
+`structuredContent.error_category`) reads correctly through the tap, and a
+replay of the recorded session reports no differences. A server that
+self-describes its errors and a tap that honours them are two layers, not
+competitors.
 
 ## Design rules
 

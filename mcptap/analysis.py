@@ -12,10 +12,12 @@ client or server):
 - tool descriptions that read like instructions to the model (a prompt
   injection hygiene signal worth surfacing, not a verdict)
 
-Error taxonomy is layered: (1) servers that speak mcptap/mcpify-style
-leading tokens ("retryable:") are honoured exactly; (2) JSON-RPC error
-codes are classified by protocol class; (3) else keyword heuristics on the
-message text, honestly labelled as such.
+Error taxonomy is layered, most-trusted first: (0) a result's
+structuredContent.error_category is believed verbatim (mcpify ≥ 1.18
+states it); (1) servers that speak mcptap/mcpify-style leading tokens
+("retryable:") are honoured exactly; (2) JSON-RPC error codes are
+classified by protocol class; (3) else keyword heuristics on the message
+text, honestly labelled as such.
 """
 
 from __future__ import annotations
@@ -283,13 +285,19 @@ def _measure_call(
         kind, text = "isError", _first_text(result)
     else:
         kind, text = "", ""
-    category = _error_category(kind, f"{detail} {text}".strip()) if kind else None
+    structured = result.get("structuredContent")
+    structured = structured if isinstance(structured, dict) else {}
+    # Layer 0: a server that states its error category in structuredContent
+    # (mcpify ≥ 1.18 does) is believed verbatim — it knows better than any
+    # reading of prose.
+    category = structured.get("error_category") or (_error_category(kind, f"{detail} {text}".strip()) if kind else None)
     return {
         "tool": name,
         "latency_ms": round(latency_ms, 1) if latency_ms is not None else None,
         "error": bool(kind),
         "error_kind": kind or None,
         "error_category": category,
+        "http_status": structured.get("http_status"),
         # single line: wire errors carry multi-line JSON bodies, and the
         # report stays one-error-per-line
         "error_excerpt": (" ".join(text.split())[:200] or None) if text else None,
