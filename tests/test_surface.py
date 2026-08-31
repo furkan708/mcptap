@@ -34,6 +34,7 @@ def test_report_sees_prompts(tmp_path):
 
 def test_report_renders_resources_and_prompts(tmp_path, capsys):
     from mcptap.cli import main as cli_main
+
     from .test_wrap import run_wrap
 
     _, session = run_wrap(tmp_path)
