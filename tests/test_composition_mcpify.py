@@ -3,7 +3,9 @@ MCP server that self-describes errors on the wire.
 
 Chain under test: client → mcptap wrap → mcpify serve → fixture HTTP API.
 Skipped automatically when mcpify is not installed (CI runs a dedicated
-job that installs it from PyPI). This pins the contract the demo proved:
+job that installs mcpify-openapi — the PyPI distribution name — from PyPI;
+"mcpify" on PyPI is an unrelated old package). This pins the contract the
+demo proved:
 
 - mcpify's leading tokens classify correctly through the tap,
 - structuredContent error_category is honoured as layer 0,

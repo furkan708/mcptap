@@ -12,7 +12,7 @@
   mcpify serve → fixture HTTP API. Asserts mcpify's own retryable/
   forbidden classification and http statuses survive the tap, and a clean
   session reports clean. Runs in CI as its own job (`composition-mcpify`,
-  installs mcpify from PyPI); skips when mcpify is absent.
+  installs mcpify-openapi from PyPI); skips when mcpify is absent.
 - demo/ gains the deterministic fixture API + OpenAPI spec used by the
   composition proof (measured through the tap: 5 tools ≈ 403 tokens,
   p95 401.7 ms, replay: no differences).

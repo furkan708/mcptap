@@ -50,5 +50,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install -e . pytest mcpify
+      - run: pip install -e . pytest mcpify-openapi
       - run: python -m pytest tests/test_composition_mcpify.py -q
