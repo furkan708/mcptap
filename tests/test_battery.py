@@ -12,9 +12,9 @@ Probes (each names a real-world producer):
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 from mcptap.analysis import analyze, load
 
