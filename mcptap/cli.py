@@ -66,6 +66,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_replay.add_argument("session", type=Path, help="recorded session .jsonl")
     p_replay.add_argument("--out", type=Path, default=None, help="replay session file")
 
+    p_wrap_http = sub.add_parser(
+        "wrap-http", help="proxy + tap a Streamable HTTP MCP server (local reverse proxy)"
+    )
+    p_wrap_http.add_argument("--url", required=True, help="upstream MCP endpoint, e.g. https://host/mcp")
+    p_wrap_http.add_argument("--host", default="127.0.0.1", help="local bind host (default 127.0.0.1)")
+    p_wrap_http.add_argument("--port", type=int, default=0, help="local port (default: ephemeral)")
+    p_wrap_http.add_argument("--out", type=Path, default=None, help="session file")
+    p_wrap_http.add_argument("--timeout", type=float, default=30.0, help="upstream timeout seconds")
+
     p_doctor = sub.add_parser(
         "doctor", help="probe every stdio server in a client config and report health"
     )
@@ -136,6 +145,11 @@ def main(argv: list[str] | None = None) -> int:
         from .doctor import main_doctor
 
         return main_doctor(args.config)
+
+    if args.command == "wrap-http":
+        from .http_proxy import main_wrap_http
+
+        return main_wrap_http(args.url, args.host, args.port, args.out, args.timeout)
 
     if args.command == "sessions":
         return _list_sessions(args.dir)

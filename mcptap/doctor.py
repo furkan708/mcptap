@@ -83,7 +83,7 @@ def doctor(config_path: Path) -> list[dict[str, Any]]:
     for name, entry in remote.items():
         detail = entry.get("url") or entry.get("type") or "no command"
         results.append({"name": name, "status": "skipped",
-                        "note": f"not stdio ({detail}); HTTP tapping is on the roadmap"})
+                        "note": f"not stdio ({detail}); tap it with: mcptap wrap-http --url <url>"})
     return results
 
 

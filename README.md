@@ -1,11 +1,12 @@
 # mcptap
 
-A zero-dependency wire tap for MCP stdio servers.
+A zero-dependency wire tap for MCP servers — stdio or Streamable HTTP.
 
 **Türkçe? → [README.tr.md](README.tr.md)**
 
-You wrap any MCP server with one config line. mcptap records every JSON-RPC
-message between your client and the server to a local JSONL file, and tells
+You wrap any stdio server with one config line, or point HTTP clients at
+a local tap URL. mcptap records every JSON-RPC message between your
+client and the server to a local JSONL file, and tells
 you what that traffic actually did: token price of the tool surface, which
 tools you pay for and never call, per-tool latency, errors with a taxonomy,
 servers that crash mid-session, and tool descriptions that read like
@@ -120,7 +121,6 @@ verdict.
 ## Roadmap
 
 - public launch once the tool earns it
-- tapping Streamable HTTP transports, not just stdio
 - a unicode-aware token estimate is in (ASCII chars/4, non-ASCII ≈ 1
   token/char); a real tokenizer would be sharper — zero-dep rules it out
 
@@ -165,7 +165,7 @@ $ mcptap doctor /tmp/demo-mcp.json
 mcptap doctor — /tmp/demo-mcp.json
   ✓ math: fake-math 9.9.9 — init 20.1ms, 4 tools ≈ 164 tk, 1 res, 1 prompt
   ✗ dies: no answer to initialize (server died, hung, or is not an MCP stdio server)
-  ⚠ remote-db: not stdio (https://db.internal/mcp); HTTP tapping is on the roadmap
+  ⚠ remote-db: not stdio (https://db.internal/mcp); tap it with: mcptap wrap-http --url <url>
 1 of 2 probed servers broken
 ```
 
@@ -174,6 +174,27 @@ Finds configs on its own when given none: `.mcp.json`, `.cursor/mcp.json`,
 
 **`mcptap sessions`** — recorded sessions with identity and surface size,
 newest marked — pick the one to `report` or `watch`.
+
+## Tapping HTTP servers
+
+stdio is half the world; the other half speaks MCP Streamable HTTP.
+`wrap-http` is a local reverse proxy with a notebook:
+
+```console
+$ mcptap wrap-http --url https://api.example.com/mcp
+mcptap: tapping https://api.example.com/mcp
+mcptap: point your client at http://127.0.0.1:39271 — recording to ~/.mcptap/sessions/…-wrap-http.jsonl
+```
+
+Put that local URL in your client config where the remote one was. The
+proxy is glass: your `Authorization` and `Mcp-Session-Id` headers cross
+untouched, upstream statuses reach you exactly, SSE responses and
+server-initiated streams are forwarded live and recorded event by event
+(a stream is many messages, not one body), and DELETE closes the upstream
+session. The same session file, the same `report` / `diff` / `replay`.
+
+It binds 127.0.0.1 by default and has no auth of its own — it forwards
+yours. Don't bind it wider than your trust.
 
 Replays are *paced*: after each request the replay waits for its response
 before sending the next line. That is not politeness — real servers

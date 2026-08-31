@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.0 — Streamable HTTP tapping (wrap-http)
+
+- `mcptap wrap-http --url https://host/mcp` — a local reverse proxy in
+  front of any Streamable HTTP MCP server; point the client at the
+  printed local URL instead of the remote one. Same session JSONL, same
+  report/diff/replay.
+- Glass semantics, pinned by a fixture upstream that enforces them:
+  request headers cross untouched (Authorization, Mcp-Session-Id,
+  MCP-Protocol-Version — the fixture 400s any post-initialize request
+  without the session header, so dropping it cannot pass), upstream
+  statuses reach the client exactly, SSE responses (POST) and
+  server-initiated streams (GET) forward line by line and are recorded
+  event by event, DELETE closes the upstream session (204 relayed).
+  structuredContent taxonomy (layer 0) verified through the proxy.
+- Binds 127.0.0.1 by default and has no auth of its own — it forwards
+  yours; that trust boundary is stated in the READMEs.
+- doctor's note for url entries now points at `mcptap wrap-http --url`
+  instead of calling HTTP a roadmap item.
+
 ## 0.6.0 — doctor & sessions
 
 - `mcptap doctor [CONFIG]` — one command for "is my client config even

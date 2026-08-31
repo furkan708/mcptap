@@ -1,10 +1,12 @@
 # mcptap
 
-MCP stdio sunucuları için sıfır bağımlılıklı telscop (wire tap).
+MCP sunucuları için sıfır bağımlılıklı telscop (wire tap) — stdio veya
+Streamable HTTP.
 
-Herhangi bir MCP sunucusunu tek satırlık bir config değişikliğiyle tap'e
-sararsınız. mcptap, istemcinizle sunucu arasındaki her JSON-RPC mesajını
-yerel bir JSONL dosyasına kaydeder ve o trafiğin gerçekte ne yaptığını
+Herhangi bir stdio sunucusunu tek satırlık bir config değişikliğiyle
+tap'e sararsınız; HTTP istemcilerini yerel bir tap URL'sine çevirirsiniz.
+mcptap, istemcinizle sunucu arasındaki her JSON-RPC mesajını yerel bir
+JSONL dosyasına kaydeder ve o trafiğin gerçekte ne yaptığını
 söyler: araç yüzeyinin token fiyatı, parasını ödediğiniz ama hiç
 çağırmadığınız araçlar, araç başına gecikme, taksonomili hata listesi,
 oturum ortasında çöken sunucular ve modelinize emir gibi okunan araç
@@ -159,7 +161,7 @@ $ mcptap doctor /tmp/demo-mcp.json
 mcptap doctor — /tmp/demo-mcp.json
   ✓ math: fake-math 9.9.9 — init 20.1ms, 4 tools ≈ 164 tk, 1 res, 1 prompt
   ✗ dies: no answer to initialize (server died, hung, or is not an MCP stdio server)
-  ⚠ remote-db: not stdio (https://db.internal/mcp); HTTP tapping is on the roadmap
+  ⚠ remote-db: not stdio (https://db.internal/mcp); tap it with: mcptap wrap-http --url <url>
 1 of 2 probed servers broken
 ```
 
@@ -169,6 +171,27 @@ Config verilmezse kendisi bulur: `.mcp.json`, `.cursor/mcp.json`,
 **`mcptap sessions`** — kayıtlı oturumlar kimlik ve yüzey ölçüsüyle
 listelenir, en yeni işaretlenir; `report`/`watch`'a vereceğinizi buradan
 seçersiniz.
+
+## HTTP sunucularını tap'lemek
+
+stdio dünyanın yarısı; öbür yarısı MCP'yi Streamable HTTP konuşuyor.
+`wrap-http` elinde defterle duran yerel bir ters vekildir:
+
+```console
+$ mcptap wrap-http --url https://api.example.com/mcp
+mcptap: tapping https://api.example.com/mcp
+mcptap: point your client at http://127.0.0.1:39271 — recording to ~/.mcptap/sessions/…-wrap-http.jsonl
+```
+
+İstemci config'indeki uzak URL'nin yerine bu yerel URL'yi koyun. Vekil
+camdır: `Authorization` ve `Mcp-Session-Id` başlıklarınız dokunulmadan
+geçer, upstream statüleri aynen size ulaşır, SSE yanıtları ve sunucu
+başlatmalı akışlar canlı aktarılır ve olay olay kaydedilir (bir akış tek
+gövde değil, pek çok mesajdır), DELETE upstream oturumunu kapatır. Aynı
+oturum dosyası, aynı `report` / `diff` / `replay`.
+
+Varsayılan olarak 127.0.0.1'e bağlanır ve kendi yetkilendirmesi yoktur —
+sizinkini iletir. Güveninizden genişine bağlamayın.
 
 Replay'ler *tempolu* yürür: her istekten sonra yanıtını bekler, öbür
 satırı öyle gönderir. Bu nezaket değil — gerçek sunucular (mcp-server-fetch
@@ -221,7 +244,6 @@ iletilen protokole hem kaydedilen oturuma iddia yapar.
 ## Yol haritası
 
 - araç kendini hak edince halka açmak
-- yalnız stdio değil, Streamable HTTP taşımacılığını da tap'lemek
 - unicode-farkında token ölçümü geldi (ASCII karakter/4, ASCII-dışı ≈
   karakter başına 1 token); gerçek bir tokenizer daha keskin olurdu —
   sıfır bağımlılık kuralı dışarıda bırakıyor
