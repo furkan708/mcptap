@@ -118,6 +118,12 @@ verdict.
 - public launch once the tool earns it
 - `mcptap doctor` — sanity-check a client config's server list the way
   `mcpify doctor` does for HTTP servers
+- resources & prompts traffic in the report (today the tap records it
+  and relays it, but the report is tools-only)
+- tapping Streamable HTTP transports, not just stdio
+- Windows testing (Claude Desktop's other home)
+- a unicode-aware token estimate (chars/4 is biased low for non-English
+  content; it is a heuristic and says so)
 
 ## The other commands
 
@@ -175,11 +181,14 @@ competitors.
 
 - **Zero dependencies.** stdlib only; `pip install mcptap` brings nothing
   else. Python ≥ 3.10.
-- **Bytes are sacred.** Protocol lines are forwarded verbatim (only the
-  trailing newline is normalized). Unparseable lines are recorded as raw
-  text — a broken peer never breaks the tap.
-- **Local-first.** Sessions stay in `~/.mcptap/sessions/`. Nothing leaves
-  your machine, ever.
+- **Bytes are sacred.** Binary pipes end to end: protocol lines are
+  forwarded byte-exact (only a missing trailing newline is added).
+  Undecodable lines are preserved base64-exact in the session file and
+  replayed bit for bit. JSON-RPC batches and pipelined requests are
+  first-class in analysis.
+- **Local-first.** Sessions stay in `~/.mcptap/sessions/` — written
+  owner-only (files 0600, directory 0700), because payloads may hold
+  secrets. Nothing leaves your machine, ever.
 - **stderr talks, stdout forwards.** The client sees exactly the protocol
   the server sent; tap notices go to stderr.
 - **Exit codes propagate.** If the server crashes with code 3, the client

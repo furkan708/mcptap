@@ -16,6 +16,7 @@ exit code — is reported as a structured difference, same shape as
 
 from __future__ import annotations
 
+import base64
 import json
 import queue
 import subprocess
@@ -32,16 +33,20 @@ from .recorder import SessionWriter, default_session_path
 RESPONSE_TIMEOUT_S = 10.0
 
 
-def _client_lines(records: list[dict[str, Any]]) -> list[str]:
-    lines = []
+def _client_lines(records: list[dict[str, Any]]) -> list[bytes]:
+    """The recorded client script, as exact bytes to resend."""
+    lines: list[bytes] = []
     for record in records:
         if record.get("dir") != "c2s":
             continue
+        if "raw_b64" in record:
+            lines.append(base64.b64decode(record["raw_b64"]))  # bit-exact replay
+            continue
         data = record.get("data")
         if isinstance(data, dict) and "raw" in data and "jsonrpc" not in data:
-            lines.append(str(data["raw"]))  # unparseable then — replay raw
+            lines.append(str(data["raw"]).encode("utf-8"))  # unparseable then
         else:
-            lines.append(json.dumps(data, ensure_ascii=False))
+            lines.append(json.dumps(data, ensure_ascii=False).encode("utf-8"))
     return lines
 
 
@@ -69,18 +74,14 @@ def replay_session(
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=None,
-        bufsize=1,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
         env=env,
     )
 
-    wire: queue.Queue[str | None] = queue.Queue()
+    wire: queue.Queue[bytes | None] = queue.Queue()
 
     def pump() -> None:
         assert child.stdout is not None
-        for line in child.stdout:
+        for line in iter(child.stdout.readline, b""):
             wire.put(line)
         wire.put(None)  # stdout closed
         writer.event("server_stdout_closed")
@@ -88,10 +89,10 @@ def replay_session(
     pumper = threading.Thread(target=pump, daemon=True)
     pumper.start()
 
-    def record_and_echo(line: str) -> None:
-        writer.message("s2c", line)
-        sys.stdout.write(line)  # let the operator see the server answer live
-        sys.stdout.flush()
+    def record_and_echo(line: bytes) -> None:
+        writer.message_bytes("s2c", line)
+        sys.stdout.buffer.write(line)  # let the operator see the server answer live
+        sys.stdout.buffer.flush()
 
     def drain(seconds: float) -> None:
         deadline = time.time() + seconds
@@ -124,14 +125,14 @@ def replay_session(
     assert child.stdin is not None
     try:
         for line in lines:
-            payload = line if line.endswith("\n") else line + "\n"
+            payload = line if line.endswith(b"\n") else line + b"\n"
             try:
                 child.stdin.write(payload)
                 child.stdin.flush()
             except (BrokenPipeError, ValueError):
                 writer.event("server_stdin_closed")
                 break
-            writer.message("c2s", payload)
+            writer.message_bytes("c2s", payload)
             if pace:
                 try:
                     msg = json.loads(payload)

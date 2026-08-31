@@ -168,11 +168,14 @@ bunu onurlandıran tap iki katmandır — rakip değil.
 
 - **Sıfır bağımlılık.** Yalnızca stdlib; `pip install mcptap` başka hiçbir
   şey getirmez. Python ≥ 3.10.
-- **Byte'lar kutsal.** Protokol satırları aynen iletilir (yalnızca satır
-  sonu normalleştirilir). Çözümlenemeyen satırlar ham metin olarak
-  kaydedilir — bozuk bir eş, tap'i bozamaz.
-- **Yerel-öncelikli.** Oturumlar `~/.mcptap/sessions/` altında kalır. Hiçbir
-  şey makinenizden çıkmaz, hiçbir zaman.
+- **Byte'lar kutsal.** Uçtan uca binary borular: protokol satırları
+  byte-exact iletilir (yalnızca eksik satır sonu eklenir). Çözümlenemeyen
+  satırlar oturum dosyasında base64-exact korunur ve replay'de bit için
+  bit yeniden gönderilir. JSON-RPC batch'leri ve pipeline istekleri
+  analizde birinci sınıf vatandaştır.
+- **Yerel-öncelikli.** Oturumlar `~/.mcptap/sessions/` altında — yalnız
+  sahip yazabilir (dosya 0600, dizin 0700), çünkü payload'lar sır
+  taşıyabilir. Hiçbir şey makinenizden çıkmaz, hiçbir zaman.
 - **stderr konuşur, stdout iletir.** İstemci, sunucunun gönderdiği
   protokolün aynısını görür; tap notları stderr'e gider.
 - **Çıkış kodları geçer.** Sunucu kod 3 ile çökerse istemci 3 görür — tap
@@ -194,6 +197,12 @@ iletilen protokole hem kaydedilen oturuma iddia yapar.
 - araç kendini hak edince halka açmak
 - `mcptap doctor` — HTTP sunucuları için `mcpify doctor`'ın yaptığı gibi,
   istemci config'indeki sunucu listesini sağlamlık kontrolünden geçirmek
+- raporda resources & prompts trafiği (tap bugün kaydedip iletiyor ama
+  rapor yalnızca araçlara bakıyor)
+- yalnız stdio değil, Streamable HTTP taşımacılığını da tap'lemek
+- Windows testi (Claude Desktop'ın öbür evi)
+- unicode-farkında token ölçümü (karakter/4 İngilizce olmayan içerikte
+  düşük tahmin eder; bir sezgidir ve bunu söyler)
 
 ## Lisans
 

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0 — adversarial battery: batches, byte-exact passthrough, 0600
+
+Found by probing the tap with what the real wire can do (5-probe
+battery, 3 broke, all fixed, all mutation-witnessed):
+
+- **Batches are first-class.** A JSON-RPC batch (one line, an array of
+  requests/responses) is unpacked for analysis — calls count, responses
+  match, no fake "unanswered" noise.
+- **Passthrough is byte-exact.** The tap now runs on binary pipes; a
+  server emitting invalid UTF-8 reaches the client bit-for-bit. Bytes
+  are sacred — previously they were sacred except when they weren't
+  (text-mode pipes silently replaced undecodable bytes).
+- **Undecodable lines are preserved base64-exact** in the session file
+  and replayed bit for bit.
+- **Session files are 0600, the sessions directory 0700.** Sessions
+  carry full payloads — arguments may hold secrets; other local users
+  are not invited.
+- Battery probes for pipelined requests and 1 MB single lines pass
+  unchanged (they always did — now it's pinned).
+
 ## 0.3.0 — structuredContent layer 0, composition pinned
 
 - Error taxonomy has a new most-trusted layer: a result's

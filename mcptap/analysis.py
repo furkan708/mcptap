@@ -70,6 +70,16 @@ def _is_response(msg: dict[str, Any]) -> bool:
     return "method" not in msg and "id" in msg
 
 
+def _iter_messages(data: Any) -> list[dict[str, Any]]:
+    """One wire line may carry a JSON-RPC batch (an array); yield the
+    message objects inside, whatever the container."""
+    if isinstance(data, list):
+        return [m for m in data if isinstance(m, dict)]
+    if isinstance(data, dict):
+        return [data]
+    return []
+
+
 def _error_category(kind: str, detail: str) -> str:
     text = detail.lower()
     for prefix in ("retryable:", "invalid_request:", "forbidden:"):
@@ -129,34 +139,33 @@ def analyze(records: list[dict[str, Any]]) -> dict[str, Any]:
 
     messages = [r for r in records if "dir" in r]
     events = [r for r in records if "event" in r]
-    client_msgs = [r["data"] for r in messages if r["dir"] == "c2s"]
-    server_msgs = [r["data"] for r in messages if r["dir"] == "s2c"]
 
     server_info: dict[str, Any] = {}
     initialize_latency_ms = 0.0
     tool_surface: list[dict[str, Any]] = []
     surface_tokens = 0
     tools_list_calls = 0
-    requests_by_id: dict[Any, dict[str, Any]] = {}
-    responses_by_id: dict[Any, dict[str, Any]] = {}
+    requests_by_id: dict[Any, tuple[dict[str, Any], float]] = {}
+    responses_by_id: dict[Any, tuple[dict[str, Any], float]] = {}
     calls: list[dict[str, Any]] = []
 
-    for msg in client_msgs:
-        if isinstance(msg, dict) and _is_request(msg):
-            requests_by_id[msg["id"]] = msg
-    for msg in server_msgs:
-        if isinstance(msg, dict) and _is_response(msg):
-            responses_by_id[msg["id"]] = msg
+    for record in messages:
+        ts = record["ts"]
+        for msg in _iter_messages(record.get("data")):
+            if _is_request(msg):
+                requests_by_id[msg["id"]] = (msg, ts)
+            elif _is_response(msg):
+                responses_by_id[msg["id"]] = (msg, ts)
 
-    for rid, request in requests_by_id.items():
-        request_ts = next(
-            (r["ts"] for r in messages if r["dir"] == "c2s" and r["data"] is request), 0.0
-        )
-        response = responses_by_id.get(rid)
-        response_ts = next(
-            (r["ts"] for r in messages if r["dir"] == "s2c" and r["data"] is response), 0.0
-        ) if response is not None else None
-        latency_ms = (response_ts - request_ts) * 1000.0 if response_ts else None
+    for rid, (request, request_ts) in requests_by_id.items():
+        response: dict[str, Any] | None
+        response_ts: float | None
+        entry = responses_by_id.get(rid)
+        if entry is None:
+            response, response_ts = None, None
+        else:
+            response, response_ts = entry
+        latency_ms = (response_ts - request_ts) * 1000.0 if response_ts is not None else None
 
         method = request.get("method", "")
         if method == "initialize" and response is not None:
@@ -177,7 +186,9 @@ def analyze(records: list[dict[str, Any]]) -> dict[str, Any]:
     # Client requests that never got a response: the server died, hung, or
     # swallowed them. This is the wire-level signature of a silent failure.
     unanswered = sorted(
-        str(r.get("method")) for r in requests_by_id.values() if r.get("id") not in responses_by_id
+        str(msg.get("method"))
+        for rid, (msg, _ts) in requests_by_id.items()
+        if rid not in responses_by_id
     )
 
     errors = [c for c in calls if c["error"]]
@@ -218,8 +229,8 @@ def analyze(records: list[dict[str, Any]]) -> dict[str, Any]:
         "unanswered_requests": unanswered,
         "initialize_latency_ms": round(initialize_latency_ms, 1),
         "messages": {
-            "client_to_server": len(client_msgs),
-            "server_to_client": len(server_msgs),
+            "client_to_server": sum(1 for r in messages if r["dir"] == "c2s"),
+            "server_to_client": sum(1 for r in messages if r["dir"] == "s2c"),
         },
         "tool_surface": {
             "tools": tool_surface,

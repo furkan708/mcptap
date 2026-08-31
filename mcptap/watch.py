@@ -7,6 +7,7 @@ the CLI is a thin shell around these.
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,9 @@ def latest_session(directory: Path = DEFAULT_SESSIONS_DIR) -> Path | None:
 
 def wire_line(record: dict[str, Any]) -> str:
     arrow = "→ server" if record.get("dir") == "c2s" else "← client"
+    if "raw_b64" in record:
+        size = len(base64.b64decode(record["raw_b64"]))
+        return f"  {arrow}  raw bytes ({size}B, undecodable)"
     data = record.get("data")
     if isinstance(data, dict):
         if "method" in data:
