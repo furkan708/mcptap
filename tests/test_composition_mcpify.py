@@ -16,7 +16,7 @@ import subprocess
 import sys
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import HTTPServer
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 

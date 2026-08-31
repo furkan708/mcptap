@@ -14,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
 class Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802 (http.server API)
+    def do_GET(self) -> None:
         if self.path.startswith("/ok"):
             body = {"status": "fine", "pets": [{"id": 1, "name": "Rex"}]}
             self._send(200, body)
