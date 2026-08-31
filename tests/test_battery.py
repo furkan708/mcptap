@@ -12,6 +12,8 @@ Probes (each names a real-world producer):
 import json
 import subprocess
 import sys
+
+import pytest
 from pathlib import Path
 
 from mcptap.analysis import analyze, load
@@ -58,7 +60,14 @@ def test_battery_b_invalid_utf8_passthrough(tmp_path):
 
 def test_battery_c_session_file_permissions(tmp_path):
     """Session files carry full payloads (arguments included): 0600, and a
-    0700 sessions directory. Anyone with $HOME read access is not invited."""
+    0700 sessions directory. Anyone with $HOME read access is not invited.
+
+    POSIX-only by nature: permission BITS don't exist on Windows (ACLs
+    are the mechanism there and chmod is a no-op). Everything else in the
+    battery runs on Windows — that's the point of the windows CI job.
+    """
+    if sys.platform == "win32":
+        pytest.skip("POSIX permission bits; Windows governs access with ACLs")
     _, session = run_wrap(tmp_path)
     assert session.stat().st_mode & 0o777 == 0o600, "session file must be owner-only"
     assert session.parent.stat().st_mode & 0o777 == 0o700, "sessions dir must be owner-only"
