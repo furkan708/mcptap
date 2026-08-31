@@ -1,7 +1,10 @@
-"""Command line: `mcptap wrap` and `mcptap report`.
+"""Command line: `mcptap wrap | report | watch | diff | replay`.
 
     mcptap wrap -- uvx mcp-server-fetch
     mcptap report ~/.mcptap/sessions/20260831-101500-uvx.jsonl
+    mcptap watch            # live view of the newest session
+    mcptap diff OLD.jsonl NEW.jsonl
+    mcptap replay OLD.jsonl -- uvx mcp-server-fetch
 
 One config line turns the tap on (see README). stderr carries tap notices,
 stdout stays a clean protocol channel.
@@ -12,12 +15,18 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
 from . import __version__
 from .analysis import analyze, load
+from .diff import diff_reports
+from .recorder import DEFAULT_SESSIONS_DIR
 from .recorder import wrap as run_wrap
+from .render import render
+from .replay import replay_session
+from .watch import latest_session, watch_frame
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -35,95 +44,128 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="session file (default: ~/.mcptap/sessions/…)",
     )
-    p_wrap.add_argument(
-        "cmd",
-        nargs=argparse.REMAINDER,
-        metavar="COMMAND",
-        help="server command; put -- before it if it starts with flags",
-    )
 
     p_report = sub.add_parser("report", help="summarize a recorded session")
     p_report.add_argument("session", type=Path, help="path to a .jsonl session file")
     p_report.add_argument("--json", action="store_true", help="machine-readable output")
 
+    p_watch = sub.add_parser("watch", help="live-refreshing report of a session")
+    p_watch.add_argument("session", type=Path, nargs="?", default=None,
+                         help="session to watch (default: newest in ~/.mcptap/sessions)")
+    p_watch.add_argument("--interval", type=float, default=1.0, help="refresh seconds")
+    p_watch.add_argument("--tail", type=int, default=5, help="wire lines to show")
+    p_watch.add_argument("--once", action="store_true", help="print one frame and exit")
+
+    p_diff = sub.add_parser("diff", help="compare two sessions (e.g. before/after an upgrade)")
+    p_diff.add_argument("old", type=Path, help="older session .jsonl")
+    p_diff.add_argument("new", type=Path, help="newer session .jsonl")
+
+    p_replay = sub.add_parser(
+        "replay", help="re-send a recorded client script to a server and diff the wire"
+    )
+    p_replay.add_argument("session", type=Path, help="recorded session .jsonl")
+    p_replay.add_argument("--out", type=Path, default=None, help="replay session file")
+
     return parser
+
+
+def _split_dash_dash(argv: list[str]) -> tuple[list[str], list[str]]:
+    """Split argv at the first bare `--`: (tap args, server command).
+
+    Done by hand because argparse REMAINDER swallows legitimate options
+    (e.g. `replay session --out X -- cmd`) once a positional is filled.
+    """
+    if "--" in argv:
+        i = argv.index("--")
+        return argv[:i], argv[i + 1 :]
+    return argv, []
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    tap_args, cmd = _split_dash_dash(list(sys.argv[1:] if argv is None else argv))
+    args = parser.parse_args(tap_args)
 
     if args.command == "wrap":
-        cmd = list(args.cmd)
-        if cmd and cmd[0] == "--":
-            cmd = cmd[1:]
         if not cmd:
             parser.error("wrap needs a command, e.g.: mcptap wrap -- uvx mcp-server-fetch")
         return run_wrap(cmd, out_path=args.out)
 
-    records = load(args.session)
-    if not records:
-        sys.stderr.write(f"mcptap: no records in {args.session}\n")
-        return 1
-    report = analyze(records)
-    if args.json:
-        sys.stdout.write(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
-    else:
-        sys.stdout.write(render(report, args.session))
-    return 0
+    if args.command == "report":
+        records = load(args.session)
+        if not records:
+            sys.stderr.write(f"mcptap: no records in {args.session}\n")
+            return 1
+        report = analyze(records)
+        if args.json:
+            sys.stdout.write(json.dumps(report, indent=2, ensure_ascii=False) + "\n")
+        else:
+            sys.stdout.write(render(report, args.session))
+        return 0
+
+    if args.command == "watch":
+        path = args.session or latest_session()
+        if path is None:
+            sys.stderr.write(f"mcptap: no sessions in {DEFAULT_SESSIONS_DIR}\n")
+            return 1
+        return _watch_loop(path, args.interval, args.tail, args.once)
+
+    if args.command == "diff":
+        old, new = analyze(load(args.old)), analyze(load(args.new))
+        sys.stdout.write(_render_diff(diff_reports(old, new), args.old, args.new))
+        return 0
+
+    if args.command == "replay":
+        if not cmd:
+            parser.error("replay needs a command, e.g.: mcptap replay session.jsonl -- uvx server")
+        result = replay_session(args.session, cmd, out_path=args.out)
+        sys.stdout.write(_render_diff(result["differences"], args.session, result["new_session"]))
+        return 1 if result["differences"] else 0
+
+    parser.error(f"unknown command {args.command!r}")
+    return 2  # unreachable
 
 
-def render(report: dict[str, Any], path: Path) -> str:
-    """Human-readable, numbers-first summary."""
-    lines: list[str] = []
-    add = lines.append
+def _watch_loop(path: Path, interval: float, tail: int, once: bool) -> int:
+    try:
+        while True:
+            records = load(path)
+            if not records:
+                sys.stderr.write(f"mcptap: no records (yet) in {path}\n")
+                return 1
+            frame = watch_frame(records, tail=tail, path=path)
+            sys.stdout.write("\x1b[2J\x1b[H" + frame)  # clear + home
+            if once:
+                return 0
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        return 0
 
-    server = report.get("server") or {}
-    name = server.get("name") or "unknown server"
-    add(f"mcptap report — {path.name}")
-    add(f"  server: {name} {server.get('version') or ''}".rstrip())
-    add(
-        f"  session: {report['duration_s']}s, "
-        f"{report['messages']['client_to_server']}→ client msgs, "
-        f"{report['messages']['server_to_client']}← server msgs, "
-        f"init {report['initialize_latency_ms']}ms"
-    )
 
-    surface = report["tool_surface"]
-    add(f"\ntool surface: {surface['count']} tools ≈ {surface['est_tokens']} tokens "
-        f"({surface['tools_list_calls']}× tools/list)")
-    for tool in sorted(surface["tools"], key=lambda t: -t["est_tokens"])[:10]:
-        flag = "  ⚠ imperative description" if tool["suspicious_description"] else ""
-        add(f"  {tool['est_tokens']:>7}  {tool['name']}{flag}")
-    if surface["unused_tools"]:
-        add(f"  unused (paid for, never called): {', '.join(surface['unused_tools'])}")
-
-    calls = report["tool_calls"]
-    add(f"\ntool calls: {calls['total']} total, {calls['errors']} errors")
-    if calls["errors"]:
-        for category, count in sorted(calls["categories"].items()):
-            add(f"  {count}× {category}")
-    overall = calls["overall"]
-    if calls["total"]:
-        add(f"  latency: p50 {overall['p50_ms']}ms, p95 {overall['p95_ms']}ms")
-    for call in calls["detail"]:
-        if call["error"]:
-            add(
-                f"  ✗ {call['tool']} [{call['error_category']}] "
-                f"({call['latency_ms']}ms): {(call['error_excerpt'] or '')[:120]}"
-            )
-
-    if report["prompt_injection_suspects"]:
-        add(f"\nprompt-injection suspects (imperative tool descriptions): "
-            f"{', '.join(report['prompt_injection_suspects'])}")
-
-    life = report["lifecycle"]
-    if report["unanswered_requests"]:
-        add(f"\n⚠ unanswered requests (server died, hung, or swallowed them): "
-            f"{len(report['unanswered_requests'])}× {', '.join(sorted(set(report['unanswered_requests'])))}")
-    if life["crashed"]:
-        add(f"⚠ server did NOT exit cleanly (code={life['exit_code']}, "
-            f"early_close={life['early_stdout_close']}, interrupted={life['interrupted']})")
-    else:
-        add(f"\nlifecycle: clean exit (code={life['exit_code']})")
+def _render_diff(diffs: list[dict[str, Any]], old: Path, new: Path) -> str:
+    lines = [f"mcptap diff — {old.name} → {new.name}"]
+    if not diffs:
+        lines.append("  no differences on the wire")
+        return "\n".join(lines) + "\n"
+    for d in diffs:
+        kind = d["kind"]
+        if kind == "server":
+            lines.append(f"  server: {d['old'].get('name')} {d['old'].get('version')} → "
+                         f"{d['new'].get('name')} {d['new'].get('version')}")
+        elif kind == "tool_added":
+            lines.append(f"  + {d['tool']} ({d['tokens']} tokens)")
+        elif kind == "tool_removed":
+            lines.append(f"  - {d['tool']} ({d['tokens']} tokens)")
+        elif kind == "tool_tokens":
+            delta = d["new"] - d["old"]
+            sign = "+" if delta >= 0 else ""
+            lines.append(f"  ~ {d['tool']}: {d['old']} → {d['new']} tokens ({sign}{delta})")
+        elif kind == "surface_total":
+            delta = d["new"] - d["old"]
+            sign = "+" if delta >= 0 else ""
+            lines.append(f"  tool surface total: {d['old']} → {d['new']} tokens ({sign}{delta})")
+        elif kind == "error_category":
+            lines.append(f"  ~ {d['tool']} errors: {d['old']} → {d['new']}")
+        elif kind == "exit_code":
+            lines.append(f"  server exit code: {d['old']} → {d['new']}")
     return "\n".join(lines) + "\n"

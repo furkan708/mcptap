@@ -6,4 +6,4 @@ JSONL session file, and get an honest report of what that traffic cost
 (tokens, latency, errors, silent failures) — no SDK, no accounts, no SaaS.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

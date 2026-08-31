@@ -2,6 +2,8 @@
 
 A zero-dependency wire tap for MCP stdio servers.
 
+**Türkçe? → [README.tr.md](README.tr.md)**
+
 You wrap any MCP server with one config line. mcptap records every JSON-RPC
 message between your client and the server to a local JSONL file, and tells
 you what that traffic actually did: token price of the tool surface, which
@@ -110,12 +112,53 @@ verdict.
 
 ## Roadmap
 
-- `mcptap watch` — live tail of the current session (tap running, report
-  refreshing).
-- `mcptap diff` — compare two sessions' tool surfaces: what got more
-  expensive after a server upgrade.
-- `mcptap replay` — feed a recorded client script back to a server;
-  regression tests for your MCP wiring with zero test infrastructure.
+- public launch once the tool earns it
+- `mcptap doctor` — sanity-check a client config's server list the way
+  `mcpify doctor` does for HTTP servers
+
+## The other commands
+
+**`mcptap watch`** — live-refreshing report of the newest session (or a
+given one), plus the last few wire lines. Run it next to your client and
+watch the session file grow:
+
+```console
+$ mcptap watch              # newest session in ~/.mcptap/sessions
+$ mcptap watch --once       # one frame, no loop (for scripts)
+```
+
+**`mcptap diff OLD NEW`** — what changed on the wire between two sessions.
+The classic use is the same server before/after an upgrade:
+
+```console
+$ mcptap diff old.jsonl new.jsonl
+mcptap diff — old.jsonl → new.jsonl
+  server: fake-math 9.9.9 → fake-math 9.10.0
+  + search (54 tokens)
+  - delete_everything (35 tokens)
+  ~ add: 38 → 52 tokens (+14)
+  tool surface total: 163 → 234 tokens (+71)
+  ~ send_email errors: {'retryable': 1} → {'forbidden': 1}
+```
+
+**`mcptap replay SESSION -- cmd`** — a recorded session becomes a
+regression harness: the client script is re-sent to a fresh server and
+the wire is diffed against the recording. Exit code 1 on differences, so
+it slots into scripts and CI as a gate.
+
+Replays are *paced*: after each request the replay waits for its response
+before sending the next line. That is not politeness — real servers
+(anyio-based ones like `mcp-server-fetch`) exit on stdin EOF before
+draining a fire-hose, which would kill them mid-script and fake a
+regression. We found this the honest way, against the real server.
+
+## Proven against a real server
+
+The test suite includes smoke tests around the official `mcp-server-fetch`
+(they skip automatically when it isn't installed). Measured through the
+tap: `mcp-fetch 1.29.1`, one `fetch` tool worth 290 tokens of surface,
+initialize at ~1.7 s, clean exit 0 — report, diff and replay all verified
+against it.
 
 ## Design rules
 

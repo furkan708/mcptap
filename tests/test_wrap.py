@@ -2,6 +2,7 @@
 both the passthrough protocol behaviour and the recorded session file."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -21,9 +22,12 @@ SESSION_LINES = [
 ]
 
 
-def run_wrap(tmp_path: Path) -> tuple[str, Path]:
-    session = tmp_path / "session.jsonl"
+def run_wrap(tmp_path: Path, toolset: str | None = None) -> tuple[str, Path]:
+    session = tmp_path / f"session{('-' + toolset) if toolset else ''}.jsonl"
     stdin = "".join(json.dumps(m) + "\n" for m in SESSION_LINES)
+    env = dict(os.environ)
+    if toolset:
+        env["FAKE_TOOLSET"] = toolset
     proc = subprocess.run(
         [sys.executable, "-m", "mcptap", "wrap", "--out", str(session), "--", sys.executable, str(FAKE)],
         input=stdin,
@@ -32,6 +36,7 @@ def run_wrap(tmp_path: Path) -> tuple[str, Path]:
         text=True,
         cwd=REPO,
         timeout=30,
+        env=env,
     )
     return proc.stdout, session
 
